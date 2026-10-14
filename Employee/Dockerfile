@@ -10,8 +10,8 @@ COPY src ./src
 # Package Spring Boot application
 RUN mvn clean package -DskipTests
 
-# Stage 2: Minimal runtime image using Eclipse Temurin JRE 21
-FROM eclipse-temurin:21-jre-alpine
+# Stage 2: Minimal runtime image using Eclipse Temurin JRE 21 (Debian-based for complete TLS & CA support)
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Copy executable jar from build stage
@@ -21,5 +21,5 @@ COPY --from=build /app/target/*.jar app.jar
 ENV PORT=7777
 EXPOSE 7777
 
-# Launch Spring Boot
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Launch Spring Boot with modern TLS protocol preferences
+ENTRYPOINT ["java", "-Djdk.tls.client.protocols=TLSv1.2,TLSv1.3", "-jar", "app.jar"]
