@@ -22,4 +22,4 @@ ENV PORT=7777
 EXPOSE 7777
 
 # Launch Spring Boot
-ENTRYPOINT ["java", "-Dserver.port=${PORT}", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
