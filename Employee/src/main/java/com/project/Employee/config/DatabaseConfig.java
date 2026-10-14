@@ -42,6 +42,10 @@ public class DatabaseConfig {
 
         if (cleanUrl.startsWith("jdbc:postgresql:")) {
             config.setDriverClassName("org.postgresql.Driver");
+            config.addDataSourceProperty("ssl", "true");
+            config.addDataSourceProperty("sslmode", "require");
+            config.addDataSourceProperty("prepareThreshold", "0");
+            config.addDataSourceProperty("tcpKeepAlive", "true");
         } else if (cleanUrl.startsWith("jdbc:mysql:")) {
             config.setDriverClassName("com.mysql.cj.jdbc.Driver");
         }
