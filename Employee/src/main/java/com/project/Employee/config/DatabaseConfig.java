@@ -113,6 +113,8 @@ public class DatabaseConfig {
                 // sslmode=require enforces encryption. In pgjdbc, require does not validate self-signed CA.
                 // We do NOT use NonValidatingFactory because it strips SNI and causes TLS 1.3 handshakes to fail.
                 if (!cleanUrl.contains("sslmode=")) {
+                    cleanUrl += (cleanUrl.contains("?") ? "&" : "?") + "sslmode=require";
+                    config.setJdbcUrl(cleanUrl);
                     config.addDataSourceProperty("sslmode", "require");
                 }
                 config.addDataSourceProperty("prepareThreshold", "0");
