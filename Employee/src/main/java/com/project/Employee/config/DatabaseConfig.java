@@ -82,14 +82,19 @@ public class DatabaseConfig {
 
             int colon = userInfo.indexOf(':');
             if (colon != -1) {
-                if (cleanUser.isEmpty()) {
-                    cleanUser = sanitize(userInfo.substring(0, colon));
+                String extractedUser = sanitize(userInfo.substring(0, colon));
+                String extractedPass = sanitize(userInfo.substring(colon + 1));
+                if (!extractedUser.isEmpty()) {
+                    cleanUser = extractedUser;
                 }
-                if (cleanPass.isEmpty()) {
-                    cleanPass = sanitize(userInfo.substring(colon + 1));
+                if (!extractedPass.isEmpty()) {
+                    cleanPass = extractedPass;
                 }
-            } else if (cleanUser.isEmpty()) {
-                cleanUser = sanitize(userInfo);
+            } else {
+                String extractedUser = sanitize(userInfo);
+                if (!extractedUser.isEmpty()) {
+                    cleanUser = extractedUser;
+                }
             }
 
             cleanUrl = "jdbc:postgresql://" + hostAndRest;
@@ -97,31 +102,32 @@ public class DatabaseConfig {
             cleanUrl = "jdbc:postgresql://" + raw;
         }
 
-        // Automatic case-correction and known fallbacks
-        if ("SAISATYA@9959".equalsIgnoreCase(cleanPass) || cleanPass.isEmpty() || "12345".equals(cleanPass)) {
-            cleanPass = VERIFIED_SUPABASE_PASS;
-        }
-        if (cleanUser.isEmpty() || "root".equals(cleanUser)) {
-            cleanUser = VERIFIED_SUPABASE_USER;
-        }
+        boolean isSupabase = cleanUrl.contains("supabase.com") || cleanUrl.contains("supabase.co");
+        if (isSupabase) {
+            if ("SAISATYA@9959".equalsIgnoreCase(cleanPass) || cleanPass.isEmpty() || "12345".equals(cleanPass)) {
+                cleanPass = VERIFIED_SUPABASE_PASS;
+            }
+            if (cleanUser.isEmpty() || "root".equals(cleanUser)) {
+                cleanUser = VERIFIED_SUPABASE_USER;
+            }
 
-        // If pointing to Supabase, enforce the pooler on port 6543 (transaction mode with IPv4)
-        if (cleanUrl.contains("pooler.supabase.com:5432")) {
-            cleanUrl = cleanUrl.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
-        } else if (cleanUrl.contains("db.") && cleanUrl.contains(".supabase.co")) {
-            // Render does not support IPv6, direct connection fails, reroute to verified pooler
-            log.info("Detected Supabase Direct URL (IPv6 only). Auto-switching to Supabase Pooler (IPv4 compatible).");
-            cleanUrl = VERIFIED_SUPABASE_URL;
-            cleanUser = VERIFIED_SUPABASE_USER;
+            // If pointing to Supabase, enforce the pooler on port 6543 (transaction mode with IPv4)
+            if (cleanUrl.contains("pooler.supabase.com:5432")) {
+                cleanUrl = cleanUrl.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
+            } else if (cleanUrl.contains("db.") && cleanUrl.contains(".supabase.co")) {
+                log.info("Detected Supabase Direct URL (IPv6 only). Auto-switching to Supabase Pooler (IPv4 compatible).");
+                cleanUrl = VERIFIED_SUPABASE_URL;
+                cleanUser = VERIFIED_SUPABASE_USER;
+            }
+
+            // Pre-flight check and automatic fallback for Supabase
+            cleanPass = testAndResolvePassword(cleanUrl, cleanUser, cleanPass);
         }
 
         if (cleanUrl.isEmpty()) {
             cleanUrl = VERIFIED_SUPABASE_URL;
-        }
-
-        // Pre-flight check and automatic fallback for Supabase
-        if (cleanUrl.contains("pooler.supabase.com")) {
-            cleanPass = testAndResolvePassword(cleanUrl, cleanUser, cleanPass);
+            cleanUser = VERIFIED_SUPABASE_USER;
+            cleanPass = VERIFIED_SUPABASE_PASS;
         }
 
         String maskedPass = cleanPass.length() > 4 ?

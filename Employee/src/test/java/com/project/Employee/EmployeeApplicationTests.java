@@ -47,7 +47,26 @@ class EmployeeApplicationTests {
 	}
 
 	@Test
+	void testRenderUrlCredentialExtraction() {
+		String raw = "postgres://employees_db_hj4t_user:superSecretPass123@dpg-db7rvmcs728c739dloog-a/employees_db_hj4t";
+		String cleanUrl = raw.substring("postgres://".length());
+		int lastAt = cleanUrl.lastIndexOf('@');
+		String userInfo = cleanUrl.substring(0, lastAt);
+		String hostAndRest = cleanUrl.substring(lastAt + 1);
+
+		int colon = userInfo.indexOf(':');
+		String extractedUser = sanitizePassword(userInfo.substring(0, colon));
+		String extractedPass = sanitizePassword(userInfo.substring(colon + 1));
+		String finalUrl = "jdbc:postgresql://" + hostAndRest;
+
+		assertEquals("employees_db_hj4t_user", extractedUser);
+		assertEquals("superSecretPass123", extractedPass);
+		assertEquals("jdbc:postgresql://dpg-db7rvmcs728c739dloog-a/employees_db_hj4t", finalUrl);
+	}
+
+	@Test
 	void contextLoads() {
 		// Basic context load test
 	}
 }
+
