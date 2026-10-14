@@ -33,17 +33,31 @@ public class DatabaseConfig {
         String cleanUser = username != null ? username.replaceAll("[\\r\\n]+", "").trim() : "";
         String cleanPass = password != null ? password.replaceAll("[\\r\\n]+", "").trim() : "";
 
-        log.info("Connecting to Database: URL={}, User={}", cleanUrl, cleanUser);
+        // If user pasted a postgres:// or postgresql:// URL without jdbc: prefix, add jdbc:
+        if (cleanUrl.startsWith("postgres://")) {
+            cleanUrl = "jdbc:postgresql://" + cleanUrl.substring("postgres://".length());
+        } else if (cleanUrl.startsWith("postgresql://")) {
+            cleanUrl = "jdbc:postgresql://" + cleanUrl.substring("postgresql://".length());
+        }
+
+        log.info("Connecting to Database: URL={}", cleanUrl);
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(cleanUrl);
-        config.setUsername(cleanUser);
-        config.setPassword(cleanPass);
+        if (!cleanUser.isEmpty()) {
+            config.setUsername(cleanUser);
+        }
+        if (!cleanPass.isEmpty()) {
+            config.setPassword(cleanPass);
+        }
 
         if (cleanUrl.startsWith("jdbc:postgresql:")) {
             config.setDriverClassName("org.postgresql.Driver");
-            config.addDataSourceProperty("sslmode", "require");
-            config.addDataSourceProperty("prepareThreshold", "0");
+            // Only enforce sslmode require for external cloud databases, not Render internal
+            if (!cleanUrl.contains(".render.com") && !cleanUrl.contains("dpg-") && !cleanUrl.contains("localhost")) {
+                config.addDataSourceProperty("sslmode", "require");
+                config.addDataSourceProperty("prepareThreshold", "0");
+            }
             config.addDataSourceProperty("tcpKeepAlive", "true");
         } else if (cleanUrl.startsWith("jdbc:mysql:")) {
             config.setDriverClassName("com.mysql.cj.jdbc.Driver");
