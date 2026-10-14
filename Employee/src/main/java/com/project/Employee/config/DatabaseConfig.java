@@ -19,13 +19,13 @@ public class DatabaseConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
 
-    @Value("${spring.datasource.url}")
+    @Value("${spring.datasource.url:${DATABASE_URL:}}")
     private String url;
 
-    @Value("${spring.datasource.username:}")
+    @Value("${spring.datasource.username:${DATABASE_USERNAME:}}")
     private String username;
 
-    @Value("${spring.datasource.password:}")
+    @Value("${spring.datasource.password:${DATABASE_PASSWORD:}}")
     private String password;
 
     @Bean
@@ -36,55 +36,54 @@ public class DatabaseConfig {
         String cleanPass = password != null ? password.replaceAll("[\\r\\n]+", "").trim() : "";
 
         // Support full postgres:// or postgresql:// URIs with embedded credentials (e.g. from Render or Supabase)
-        String rawUriStr = cleanUrl;
-        if (rawUriStr.startsWith("jdbc:postgresql://")) {
-            rawUriStr = rawUriStr.substring(5); // strip "jdbc:" to parse as URI
+        String raw = cleanUrl;
+        if (raw.startsWith("jdbc:postgresql://")) {
+            raw = raw.substring("jdbc:postgresql://".length());
+        } else if (raw.startsWith("postgres://")) {
+            raw = raw.substring("postgres://".length());
+        } else if (raw.startsWith("postgresql://")) {
+            raw = raw.substring("postgresql://".length());
         }
 
-        if (rawUriStr.startsWith("postgres://") || rawUriStr.startsWith("postgresql://")) {
-            try {
-                String uriToParse = rawUriStr.startsWith("postgres://")
-                        ? "http://" + rawUriStr.substring("postgres://".length())
-                        : "http://" + rawUriStr.substring("postgresql://".length());
+        // Extract credentials if embedded as user:pass@host...
+        int lastAt = raw.lastIndexOf('@');
+        if (lastAt != -1) {
+            String userInfo = raw.substring(0, lastAt);
+            String hostAndRest = raw.substring(lastAt + 1);
 
-                URI parsedUri = URI.create(uriToParse);
-                if (parsedUri.getUserInfo() != null && !parsedUri.getUserInfo().isEmpty()) {
-                    String[] userParts = parsedUri.getUserInfo().split(":", 2);
-                    if (cleanUser.isEmpty() && userParts.length > 0) {
-                        cleanUser = URLDecoder.decode(userParts[0], StandardCharsets.UTF_8);
+            int colon = userInfo.indexOf(':');
+            if (colon != -1) {
+                if (cleanUser.isEmpty()) {
+                    try {
+                        cleanUser = URLDecoder.decode(userInfo.substring(0, colon), StandardCharsets.UTF_8);
+                    } catch (Exception e) {
+                        cleanUser = userInfo.substring(0, colon);
                     }
-                    if (cleanPass.isEmpty() && userParts.length > 1) {
-                        cleanPass = URLDecoder.decode(userParts[1], StandardCharsets.UTF_8);
+                }
+                if (cleanPass.isEmpty()) {
+                    try {
+                        cleanPass = URLDecoder.decode(userInfo.substring(colon + 1), StandardCharsets.UTF_8);
+                    } catch (Exception e) {
+                        cleanPass = userInfo.substring(colon + 1);
                     }
                 }
-
-                String host = parsedUri.getHost();
-                int port = parsedUri.getPort();
-                String path = parsedUri.getPath();
-                String query = parsedUri.getQuery();
-
-                StringBuilder jdbcBuilder = new StringBuilder("jdbc:postgresql://");
-                jdbcBuilder.append(host != null ? host : "localhost");
-                if (port != -1) {
-                    jdbcBuilder.append(":").append(port);
-                }
-                if (path != null && !path.isEmpty()) {
-                    jdbcBuilder.append(path);
-                } else {
-                    jdbcBuilder.append("/postgres");
-                }
-                if (query != null && !query.isEmpty()) {
-                    jdbcBuilder.append("?").append(query);
-                }
-                cleanUrl = jdbcBuilder.toString();
-            } catch (Exception e) {
-                log.warn("Could not parse URI via java.net.URI, falling back: {}", e.getMessage());
-                if (cleanUrl.startsWith("postgres://")) {
-                    cleanUrl = "jdbc:postgresql://" + cleanUrl.substring("postgres://".length());
-                } else if (cleanUrl.startsWith("postgresql://")) {
-                    cleanUrl = "jdbc:postgresql://" + cleanUrl.substring("postgresql://".length());
+            } else if (cleanUser.isEmpty()) {
+                try {
+                    cleanUser = URLDecoder.decode(userInfo, StandardCharsets.UTF_8);
+                } catch (Exception e) {
+                    cleanUser = userInfo;
                 }
             }
+
+            cleanUrl = "jdbc:postgresql://" + hostAndRest;
+        } else if (!cleanUrl.startsWith("jdbc:postgresql:") && !cleanUrl.startsWith("jdbc:mysql:")) {
+            cleanUrl = "jdbc:postgresql://" + raw;
+        }
+
+        // Supabase placeholder fix: users often copy '[YOUR-PASSWORD]' from Supabase and enter '[password]' literally
+        if (cleanPass.startsWith("[") && cleanPass.endsWith("]") && cleanPass.length() > 2) {
+            log.info("Detected square brackets in password from placeholder copy-paste. Trimming enclosing '[' and ']'.");
+            cleanPass = cleanPass.substring(1, cleanPass.length() - 1);
         }
 
         log.info("Connecting to Database: URL={}, User={}", cleanUrl, cleanUser);
@@ -101,15 +100,21 @@ public class DatabaseConfig {
         if (cleanUrl.startsWith("jdbc:postgresql:")) {
             config.setDriverClassName("org.postgresql.Driver");
 
-            boolean isInternalRender = cleanUrl.contains("dpg-") || cleanUrl.contains(".render.internal");
+            if (cleanUrl.contains("db.") && cleanUrl.contains(".supabase.co")) {
+                log.warn("WARNING: You are using Supabase Direct Connection ('db.xxxx.supabase.co:5432'). "
+                        + "Supabase Direct is IPv6-only, while Render only supports IPv4. "
+                        + "If the handshake fails, switch to Supabase Connection Pooler ('aws-0-xxx.pooler.supabase.com:6543')!");
+            }
+
             boolean isLocalhost = cleanUrl.contains("localhost") || cleanUrl.contains("127.0.0.1");
 
-            if (!isInternalRender && !isLocalhost) {
-                // External cloud Postgres (Supabase, Neon, AWS RDS, etc.)
+            if (!isLocalhost) {
+                // External cloud Postgres (Supabase, Neon, AWS RDS, Render, etc.)
+                // sslmode=require enforces encryption. In pgjdbc, require does not validate self-signed CA.
+                // We do NOT use NonValidatingFactory because it strips SNI and causes TLS 1.3 handshakes to fail.
                 if (!cleanUrl.contains("sslmode=")) {
                     config.addDataSourceProperty("sslmode", "require");
                 }
-                config.addDataSourceProperty("sslfactory", "org.postgresql.ssl.NonValidatingFactory");
                 config.addDataSourceProperty("prepareThreshold", "0");
                 config.addDataSourceProperty("preparedStatementCacheQueries", "0");
             }
