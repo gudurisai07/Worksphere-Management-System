@@ -21,5 +21,5 @@ COPY --from=build /app/target/*.jar app.jar
 ENV PORT=7777
 EXPOSE 7777
 
-# Launch Spring Boot with SSL debug logging for diagnostic visibility
-ENTRYPOINT ["java", "-Djavax.net.debug=ssl:handshake", "-jar", "app.jar"]
+# Launch Spring Boot
+ENTRYPOINT ["java", "-jar", "app.jar"]

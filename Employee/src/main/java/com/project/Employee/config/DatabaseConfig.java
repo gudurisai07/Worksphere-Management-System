@@ -86,7 +86,11 @@ public class DatabaseConfig {
             cleanPass = cleanPass.substring(1, cleanPass.length() - 1);
         }
 
-        log.info("Connecting to Database: URL={}, User={}", cleanUrl, cleanUser);
+        log.info("Connecting to Database: URL={}, User={}, PasswordSet={}, PasswordLength={}",
+                cleanUrl, cleanUser, !cleanPass.isEmpty(), cleanPass.length());
+        if (cleanPass.isEmpty() && cleanUrl.startsWith("jdbc:postgresql:")) {
+            log.warn("WARNING: Database password is EMPTY! Please set SPRING_DATASOURCE_PASSWORD in Render Environment variables.");
+        }
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(cleanUrl);
