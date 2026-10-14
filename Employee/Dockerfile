@@ -21,5 +21,5 @@ COPY --from=build /app/target/*.jar app.jar
 ENV PORT=7777
 EXPOSE 7777
 
-# Launch Spring Boot with modern TLS protocol preferences
-ENTRYPOINT ["java", "-Djdk.tls.client.protocols=TLSv1.2,TLSv1.3", "-jar", "app.jar"]
+# Launch Spring Boot with SSL debug logging for diagnostic visibility
+ENTRYPOINT ["java", "-Djavax.net.debug=ssl:handshake", "-jar", "app.jar"]
