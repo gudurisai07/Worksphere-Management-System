@@ -1,0 +1,24 @@
+# Dependencies & Build files
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Maven / Java Build artifacts
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Environment variables & secrets (keep .env files private)
+.env.local
+.env.*.local
+
+# IDEs & System files
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+*.log
