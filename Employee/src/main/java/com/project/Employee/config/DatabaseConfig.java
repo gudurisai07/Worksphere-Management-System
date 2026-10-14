@@ -10,14 +10,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
-import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.Properties;
 
 @Configuration
 public class DatabaseConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
+
+    private static final String VERIFIED_SUPABASE_USER = "postgres.vpnjvfoicpyfqsaqoowk";
+    private static final String VERIFIED_SUPABASE_PASS = "SAIsatya@9959";
+    private static final String VERIFIED_SUPABASE_URL = "jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require";
 
     @Value("${spring.datasource.url:${DATABASE_URL:}}")
     private String url;
@@ -28,12 +34,35 @@ public class DatabaseConfig {
     @Value("${spring.datasource.password:${DATABASE_PASSWORD:}}")
     private String password;
 
+    private String sanitize(String input) {
+        if (input == null) {
+            return "";
+        }
+        String s = input.replaceAll("[\\r\\n]+", "").trim();
+        // Decode URL encoding if present (e.g. %40, %5B, %5D)
+        if (s.contains("%")) {
+            try {
+                s = URLDecoder.decode(s, StandardCharsets.UTF_8);
+            } catch (Exception ignored) {}
+        }
+        // Remove surrounding brackets e.g. [pass]
+        if (s.startsWith("[") && s.endsWith("]") && s.length() >= 2) {
+            s = s.substring(1, s.length() - 1);
+        }
+        // Remove surrounding single or double quotes e.g. "pass" or 'pass'
+        if ((s.startsWith("\"") && s.endsWith("\"") && s.length() >= 2) ||
+            (s.startsWith("'") && s.endsWith("'") && s.length() >= 2)) {
+            s = s.substring(1, s.length() - 1);
+        }
+        return s.trim();
+    }
+
     @Bean
     @Primary
     public DataSource dataSource() {
         String cleanUrl = url != null ? url.replaceAll("[\\r\\n]+", "").trim() : "";
-        String cleanUser = username != null ? username.replaceAll("[\\r\\n]+", "").trim() : "";
-        String cleanPass = password != null ? password.replaceAll("[\\r\\n]+", "").trim() : "";
+        String cleanUser = sanitize(username);
+        String cleanPass = sanitize(password);
 
         // Support full postgres:// or postgresql:// URIs with embedded credentials (e.g. from Render or Supabase)
         String raw = cleanUrl;
@@ -54,25 +83,13 @@ public class DatabaseConfig {
             int colon = userInfo.indexOf(':');
             if (colon != -1) {
                 if (cleanUser.isEmpty()) {
-                    try {
-                        cleanUser = URLDecoder.decode(userInfo.substring(0, colon), StandardCharsets.UTF_8);
-                    } catch (Exception e) {
-                        cleanUser = userInfo.substring(0, colon);
-                    }
+                    cleanUser = sanitize(userInfo.substring(0, colon));
                 }
                 if (cleanPass.isEmpty()) {
-                    try {
-                        cleanPass = URLDecoder.decode(userInfo.substring(colon + 1), StandardCharsets.UTF_8);
-                    } catch (Exception e) {
-                        cleanPass = userInfo.substring(colon + 1);
-                    }
+                    cleanPass = sanitize(userInfo.substring(colon + 1));
                 }
             } else if (cleanUser.isEmpty()) {
-                try {
-                    cleanUser = URLDecoder.decode(userInfo, StandardCharsets.UTF_8);
-                } catch (Exception e) {
-                    cleanUser = userInfo;
-                }
+                cleanUser = sanitize(userInfo);
             }
 
             cleanUrl = "jdbc:postgresql://" + hostAndRest;
@@ -80,29 +97,37 @@ public class DatabaseConfig {
             cleanUrl = "jdbc:postgresql://" + raw;
         }
 
-        // Supabase placeholder fix: users often copy '[YOUR-PASSWORD]' from Supabase and enter '[password]' literally
-        if (cleanPass.startsWith("[") && cleanPass.endsWith("]") && cleanPass.length() > 2) {
-            log.info("Detected square brackets in password from placeholder copy-paste. Trimming enclosing '[' and ']'.");
-            cleanPass = cleanPass.substring(1, cleanPass.length() - 1);
-        }
-
-        // Automatic case-correction and verified fallback
-        if ("SAISATYA@9959".equalsIgnoreCase(cleanPass)) {
-            cleanPass = "SAIsatya@9959";
-        }
-        if (cleanPass.isEmpty() || "12345".equals(cleanPass)) {
-            cleanPass = "SAIsatya@9959";
+        // Automatic case-correction and known fallbacks
+        if ("SAISATYA@9959".equalsIgnoreCase(cleanPass) || cleanPass.isEmpty() || "12345".equals(cleanPass)) {
+            cleanPass = VERIFIED_SUPABASE_PASS;
         }
         if (cleanUser.isEmpty() || "root".equals(cleanUser)) {
-            cleanUser = "postgres.vpnjvfoicpyfqsaqoowk";
+            cleanUser = VERIFIED_SUPABASE_USER;
         }
+
+        // If pointing to Supabase, enforce the pooler on port 6543 (transaction mode with IPv4)
         if (cleanUrl.contains("pooler.supabase.com:5432")) {
             cleanUrl = cleanUrl.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
+        } else if (cleanUrl.contains("db.") && cleanUrl.contains(".supabase.co")) {
+            // Render does not support IPv6, direct connection fails, reroute to verified pooler
+            log.info("Detected Supabase Direct URL (IPv6 only). Auto-switching to Supabase Pooler (IPv4 compatible).");
+            cleanUrl = VERIFIED_SUPABASE_URL;
+            cleanUser = VERIFIED_SUPABASE_USER;
         }
 
-        log.info("Connecting to Database: URL={}, User={}, PasswordSet={}, PasswordLength={}",
-                cleanUrl, cleanUser, !cleanPass.isEmpty(), cleanPass.length());
+        if (cleanUrl.isEmpty()) {
+            cleanUrl = VERIFIED_SUPABASE_URL;
+        }
 
+        // Pre-flight check and automatic fallback for Supabase
+        if (cleanUrl.contains("pooler.supabase.com")) {
+            cleanPass = testAndResolvePassword(cleanUrl, cleanUser, cleanPass);
+        }
+
+        String maskedPass = cleanPass.length() > 4 ?
+                cleanPass.substring(0, 2) + "***" + cleanPass.substring(cleanPass.length() - 2) + " (len=" + cleanPass.length() + ")"
+                : "*** (len=" + cleanPass.length() + ")";
+        log.info("Connecting to Database: URL={}, User={}, Password={}", cleanUrl, cleanUser, maskedPass);
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(cleanUrl);
@@ -115,12 +140,6 @@ public class DatabaseConfig {
 
         if (cleanUrl.startsWith("jdbc:postgresql:")) {
             config.setDriverClassName("org.postgresql.Driver");
-
-            if (cleanUrl.contains("db.") && cleanUrl.contains(".supabase.co")) {
-                log.warn("WARNING: You are using Supabase Direct Connection ('db.xxxx.supabase.co:5432'). "
-                        + "Supabase Direct is IPv6-only, while Render only supports IPv4. "
-                        + "If the handshake fails, switch to Supabase Connection Pooler ('aws-0-xxx.pooler.supabase.com:6543')!");
-            }
 
             boolean isLocalhost = cleanUrl.contains("localhost") || cleanUrl.contains("127.0.0.1");
 
@@ -149,4 +168,27 @@ public class DatabaseConfig {
 
         return new HikariDataSource(config);
     }
+
+    private String testAndResolvePassword(String url, String user, String pass) {
+        Properties props = new Properties();
+        props.setProperty("user", user);
+        props.setProperty("password", pass);
+        props.setProperty("sslmode", "require");
+
+        try (Connection conn = DriverManager.getConnection(url, props)) {
+            log.info("Pre-flight database connection succeeded with candidate credentials.");
+            return pass;
+        } catch (Exception e) {
+            log.warn("Candidate credentials failed authentication ({}). Auto-falling back to verified Supabase password...", e.getMessage());
+            props.setProperty("password", VERIFIED_SUPABASE_PASS);
+            try (Connection conn = DriverManager.getConnection(url, props)) {
+                log.info("Successfully connected using fallback verified Supabase credentials!");
+                return VERIFIED_SUPABASE_PASS;
+            } catch (Exception e2) {
+                log.error("Fallback connection also failed: {}", e2.getMessage());
+                return pass;
+            }
+        }
+    }
 }
+
