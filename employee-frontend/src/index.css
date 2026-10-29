@@ -1331,32 +1331,38 @@ input:disabled, select:disabled {
   to { transform: rotate(360deg); }
 }
 
-/* Modals */
+/* Modals (Bootstrap Conflict-Free) */
 .modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  z-index: 2000;
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(3, 7, 18, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  z-index: 99999 !important;
 }
 .modal {
-  background: #ffffff;
-  border-radius: var(--radius);
-  padding: 24px;
-  width: 100%;
-  max-width: 440px;
-  box-shadow: var(--shadow-lg);
+  display: block !important;
+  position: relative !important;
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  border-radius: var(--radius) !important;
+  padding: 24px !important;
+  width: 100% !important;
+  max-width: 480px !important;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(139, 92, 246, 0.2) !important;
 }
 .modal h3 {
   margin: 0 0 8px;
+  color: #ffffff;
 }
 .modal p {
   margin: 0 0 20px;
-  color: var(--muted);
+  color: #94a3b8;
   font-size: 0.92rem;
 }
 .modal-actions {
@@ -1364,6 +1370,113 @@ input:disabled, select:disabled {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 18px;
+}
+
+/* Dedicated Confirm Dialog for Delete Operations */
+.custom-confirm-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(3, 7, 18, 0.82) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  z-index: 999999 !important;
+  animation: fadeInConfirmModal 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.custom-confirm-card {
+  display: block !important;
+  position: relative !important;
+  background: linear-gradient(145deg, #111827, #0b1120) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  border-radius: 18px !important;
+  padding: 28px !important;
+  width: 100% !important;
+  max-width: 470px !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(239, 68, 68, 0.22) !important;
+  color: #f8fafc !important;
+  animation: scaleInConfirmModal 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.custom-confirm-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin-bottom: 14px !important;
+}
+
+.custom-confirm-icon-badge {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 12px !important;
+  background: rgba(239, 68, 68, 0.16) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.4rem !important;
+  flex-shrink: 0 !important;
+}
+
+.custom-confirm-header h3 {
+  margin: 0 !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  letter-spacing: -0.01em !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+.custom-confirm-message {
+  margin: 0 0 24px 0 !important;
+  color: #cbd5e1 !important;
+  font-size: 0.96rem !important;
+  line-height: 1.55 !important;
+}
+
+.custom-confirm-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 20px !important;
+}
+
+.custom-confirm-actions .btn {
+  padding: 9px 20px !important;
+  font-weight: 600 !important;
+  font-size: 0.94rem !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.custom-confirm-actions .btn-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(239, 68, 68, 0.6) !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+}
+
+.custom-confirm-actions .btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5) !important;
+}
+
+@keyframes fadeInConfirmModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleInConfirmModal {
+  from { opacity: 0; transform: scale(0.92) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* ---------- Responsive ---------- */

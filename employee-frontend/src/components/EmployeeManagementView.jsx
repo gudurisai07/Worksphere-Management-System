@@ -169,6 +169,7 @@ export default function EmployeeManagementView({
         type: 'error',
         text: getErrorMessage(err, 'delete employee'),
       })
+      setDeleteTarget(null)
     } finally {
       setDeleting(false)
     }
@@ -194,6 +195,7 @@ export default function EmployeeManagementView({
         type: 'error',
         text: getErrorMessage(err, 'delete all employees'),
       })
+      setDeleteAllOpen(false)
     } finally {
       setDeletingAll(false)
     }

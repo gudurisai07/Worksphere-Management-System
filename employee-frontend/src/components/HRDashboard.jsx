@@ -718,8 +718,8 @@ export default function HRDashboard({
 
       {/* Modal: Elevate Existing Manager to Top Position (Point 9: Only Domain, Point 8: Salary) */}
       {showPromoteModal && (
-        <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: '480px' }}>
+        <div className="custom-confirm-backdrop" onClick={() => !isPromoting && setShowPromoteModal(false)}>
+          <div className="custom-confirm-card" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
             <h3>⭐ Elevate Manager to Top Position</h3>
             <p>Assign senior leadership, VP, or director rank and update salary in database.</p>
 
